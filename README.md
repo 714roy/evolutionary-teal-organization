@@ -160,42 +160,67 @@ ETO 的青色组织是终极目标，可阶段性演进：
 
 ---
 
-## 🚀 快速体验
-
-```bash
-# 安装 ETO CLI
-# 已预装在 ~/.local/bin/ETO
-
-# 交互模式
-ETO
-
-# 研究模式（调 Reasonix）
-ETO --mode research 帮我分析一下今天的AI新闻
-
-# 构建模式（调 Claude Code）
-ETO --mode build 帮我重构这个函数
-```
-
----
-
 ## 🚀 快速开始
 
-### 依赖
-- Python 3.10+
-- [Pi CLI](https://github.com/earendil-works/pi-coding-agent)（Agent 运行时）
-- [Ollama](https://ollama.com/)（本地 LLM）
-
-### 运行
+### 一行安装
 ```bash
-# 1. 复制 MCP 配置
-cp .mcp.example.json .mcp.json
-
-# 2. 安装依赖
-pip install protolink rich textual prompt_toolkit pyyaml
-
-# 3. 启动
-python3 src/tui.py
+git clone https://github.com/reoroy/evolutionary-teal-organization.git
+cd evolutionary-teal-organization
+make setup
+eto           # 启动终端界面
 ```
+
+或使用一键脚本：
+```bash
+curl -fsSL https://raw.githubusercontent.com/reoroy/evolutionary-teal-organization/main/scripts/setup.sh | bash
+```
+
+### 手动安装
+
+#### 1. 安装 Python 包
+```bash
+pip install -e .          # 安装依赖 + 注册 eto 命令
+# 或: pip install -r requirements.txt
+```
+
+#### 2. 拉取 Ollama 模型
+```bash
+make models               # 拉取 qwen2.5-coder:7b 等模型
+# 或手动: ollama pull qwen2.5-coder:7b
+```
+
+#### 3. 配置 MCP 服务（可选）
+```bash
+cp .mcp.example.json .mcp.json
+# 编辑 .mcp.json，填入你自己的 MCP 服务地址
+```
+
+#### 4. 安装 Pi CLI（Agent 运行时）
+Pi CLI 是 ETO 的 Agent 执行引擎：
+```bash
+npm install -g @earendil-works/pi-coding-agent
+# 或通过 uv: uv tool install @earendil-works/pi-coding-agent
+```
+
+#### 5. 链接 CLI 入口
+```bash
+make bin-link
+# 或手动: ln -sf $(pwd)/bin/eto ~/.local/bin/eto
+```
+
+#### 6. 启动
+```bash
+eto                              # 终端界面
+ETO --mode research "调研..."    # CLI 模式
+python3 src/tui.py               # 或直接跑 Python
+```
+
+### 环境要求
+- **OS**: Linux / macOS / Windows
+- **Python**: 3.10+
+- **RAM**: 8GB+（推荐 16GB，用于本地 LLM）
+- **Ollama**: [https://ollama.com](https://ollama.com)
+- **Node.js**: 可选（Pi CLI 需要）
 
 ### 项目结构
 ```
