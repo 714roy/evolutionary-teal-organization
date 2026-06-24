@@ -1,10 +1,24 @@
-__pycache__/
-*.pyc
-.venv/
+# Dependencies
+node_modules/
+package-lock.json
+
+# Local config
 .mcp.json
 .env
-*~
+.pi/settings.json
 
-# Local runtime
-.eto/
-.to/
+# Personal workspace
+.claude/
+.reasonix/
+AIMemory/
+
+# Archived projects
+_archive/
+_archive_src/
+
+# Cloned stitch repos (external)
+eto/stitches/maestro/
+eto/stitches/protolink/
+eto/stitches/raft-lite/
+eto/stitches/lythonic/
+vendors/

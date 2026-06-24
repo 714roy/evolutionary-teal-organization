@@ -21,28 +21,38 @@
 
 | ETO 需求 | 开源方案 | 链接 | 集成方式 |
 |:---------|:---------|:-----|:---------|
-| 任务→DAG分解 | **Nexus** (Python) | [sontianye/nexus](https://github.com/sontianye/nexus) | 3种模式：Graph/Router/Adaptive，对应ETO的三种路由 |
-| 智能路由 | 同上，Adaptive模式 = embedding匹配 | — | 自动按能力匹配Agent，不用手动写路由逻辑 |
-| 多Agent团队 | **Open Multi-Agent** | [open-multi-agent/core](https://github.com/open-multi-agent/open-multi-agent) 6.4K⭐ | Goal→Task DAG，并行执行独立任务 |
+| 任务→DAG分解 | **Maestro** 🏆 | [miciav/maestro](https://github.com/miciav/maestro) | YAML DAG + CLI/REST，多执行器（local/SSH/Docker） |
+| 轻量DAG | **lythonic** | [walnutgeek/lythonic](https://github.com/walnutgeek/lythonic) | Python函数链式编排，`>>` 接线，SQLite追踪 |
+| 本地DAG引擎+WebUI | **Dagu** | [dagucloud/dagu](https://github.com/dagucloud/dagu) | YAML DAG，Web UI，自带MCP Server，AI Agent友好 |
 
-**预期胶水代码：** 给 Nexus 一个任务，拿回分解结果 -> 分给 Agent，约 40 行
+> ⚠ 旧方案 Nexus (`sontianye/nexus`) 已不可用，以上为2025-2026活跃替代。
+
+**预期胶水代码：** 调 Maestro API 分解任务 -> 分给 Agent，约 50 行
 
 ### 共识/选举层——Agent 之间怎么达成一致
 
 | ETO 需求 | 开源方案 | 链接 | 集成方式 |
 |:---------|:---------|:-----|:---------|
-| 拜占庭容错投票 | **Aegean Consensus** | [hetu-project/aegean-consensus](https://github.com/hetu-project/aegean-consensus) | 每个Agent独立回答→投票→超阈值通过 |
-| 协调员选举 | **Gravity AI** (Raft) | [dhiaayachi/gravity-ai](https://github.com/dhiaayachi/gravity-ai) | Raft选举 + 声誉加权 |
+| 多模型投票共识 | **VotingAI** 🏆 | [tejas-dharani/votingai](https://github.com/tejas-dharani/votingai) | 5种投票策略，加密验票，拜占庭容错，审计日志 |
+| 轻量多LLM共识 | **LLM Council** | [gauravvij/llm_council](https://github.com/gauravvij/llm_council) | ~200行，并行查询多模型，投票/合成两种策略 |
+| 结构化辩论+审计 | **Aragora** | [synaptent/aragora](https://github.com/synaptent/aragora) | Agent辩论→投票→决策收据，可审计溯源 |
+| 协调员选举 | **raft-lite** 🏆 | [nikwl/raft-lite](https://github.com/nikwl/raft-lite) | 纯Python单文件Raft，Leader选举，网络层可换 |
+| 协调员选举(备选) | **consensual** | [lycantropos/consensual](https://github.com/lycantropos/consensual) | 纯Python Raft，Leader选举+日志复制，PyPI可装 |
 
-**预期胶水代码：** 任务完成后调Aegean投票，约 30 行
+> ⚠ 旧方案 Aegean Consensus 和 Gravity AI 均不可用，以上为2025-2026活跃替代。
+
+**预期胶水代码：** VotingAI 评分 + raft-lite 选举协调员，约 60 行
 
 ### 记忆层
 
-| ETO 需求 | 方案 | 备注 |
-|:---------|:-----|:-----|
-| Agent共享记忆 | **agentmemory** | 已在用，接 A2A 上下文传递 |
-| 安全护栏 | **Hermes enforcer** | 已在用 |
-| 技能安检 | **SkillSpector** | [NVIDIA/SkillSpector](https://github.com/NVIDIA/SkillSpector) 7K⭐，可选 |
+| ETO 需求 | 开源方案 | 链接 | 集成方式 |
+|:---------|:---------|:-----|:---------|
+| 短期会话记忆 | **Pi JSONL 会话树** | Pi 内置 | 自动管理，ETO 不需要额外代码 |
+| 长期语义记忆 | **@yylan/pi-memory** 🏆 | [npm](https://www.npmjs.com/package/@yylan/pi-memory) | `pi install npm:@yylan/pi-memory`，4层记忆+FTS5+向量 |
+| 记忆+知识图谱 | **pi-mempalace** | [npm](https://www.npmjs.com/package/@sinamtz/pi-mempalace) | SurrealDB 3.0 HNSW，向量+图+时序 |
+| 轻量语义记忆 | **pi-awareness-memory** | [npm](https://www.npmjs.com/package/pi-awareness-memory) | all-MiniLM嵌入，记忆衰减，Web仪表盘 |
+| ~~agentmemory~~ | ❌ 已弃用 | — | 改为用 Pi 生态记忆扩展，更轻量更贴合 |
+| 安全护栏 | **Hermes enforcer** | — | 已在用 |
 
 ---
 
@@ -50,16 +60,21 @@
 
 ```
 Phase 1 (✅ 已完成):
-第1步：[装 ProtoLink] 两个Agent通过HTTP A2A通信     ← ✅ ProtoLink v0.6.1 HTTP transport 验证通过
+第1步：[装 ProtoLink] 两个Agent通过HTTP A2A通信     ← ✅ ProtoLink v0.6.1 验证通过
      ↓
-Phase 2 (🟡 进行中):
-第2步：[接 Nexus] 输入一个任务，自动分解步骤       ← pip install nexus
+Phase 2 (🟡 进行中 — 旧方案已死，新替代就绪):
+第2.1步：[接 Maestro] 输入任务，自动分解DAG步骤    ← pip install maestro
+ 或 [接 lythonic]  轻量Python函数链式编排          ← pip install lythonic
+ 或 [接 Dagu]      本地DAG引擎+WebUI               ← dagu init
      ↓
-第3步：[接 Aegean] 多Agent投票达成共识             ← pip install aegean-consensus
+第3.1步：[接 VotingAI] 多Agent投票达成共识          ← pip install votingai
+ 或 [接 LLM Council] 轻量多模型并行评分              ← pip install llm-council
+ 或 [接 Aragora]    结构化辩论+审计溯源             ← pip install aragora
      ↓
-第4步：[接 Gravity AI] Raft选举协调员              ← pip install gravity-ai
+第4.1步：[接 raft-lite] 纯Python Raft选举协调员     ← pip install raft-lite
+ 或 [接 consensual] 完整Raft实现(含日志复制)        ← pip install consensual
      ↓
-第5步：[接 agentmemory] 共享记忆跨session持续      ← 已有的，接上就行
+第5步：[接 agentmemory] 共享记忆跨session持续       ← ✅ 已有的
      ↓
 Phase 3-5 (📋 规划中):
 第6步：动态自组织（弹性Agent池、自我修复）
