@@ -83,11 +83,36 @@ else
 	$(RUN_CMD) --provider $(RUN_PROVIDER) --model $(RUN_MODEL)
 endif
 
-# 代理模式: Pi + ETO 扩展 + Anthropic provider → 127.0.0.1:15721
-# 不传 -p 时进入 TUI，传 M= 时做一次性查询
-run-proxy:
-ifdef M
-	ANTHROPIC_BASE_URL=http://127.0.0.1:15721 ANTHROPIC_API_KEY=PROXY_MANAGED $(RUN_CMD) --provider anthropic -p "$(M)"
-else
-	ANTHROPIC_BASE_URL=http://127.0.0.1:15721 ANTHROPIC_API_KEY=PROXY_MANAGED $(RUN_CMD) --provider anthropic
-endif
+# ── 安装 ──────────────────────────────────────────────────
+# Windows: install.cmd
+# Unix/WSL: make setup
+.PHONY: setup install-py bootstrap
+
+setup: install-py bootstrap
+	@echo "✅ ETO 就绪，敲 eto 启动"
+
+install-py:
+	pip install -e eto/
+
+bootstrap:
+	python3 -c "import sys; sys.path.insert(0,'.'); from eto.bootstrap import run; run()"
+
+# ── 发布 ──────────────────────────────────────────────────
+# make release           → 完整发布流程
+.PHONY: release
+
+release:
+	@echo "==> ETO Release v0.1.0"
+	@echo ""
+	@echo "  1. git tag v0.1.0"
+	@echo "  2. git push origin v0.1.0"
+	@echo "  3. pip install -e eto/"
+	@echo "  4. pi install eto/extensions/eto.ts"
+	@echo "  5. pi-bootstrap.cmd"
+	@echo ""
+	@echo "  发布包含:"
+	@echo "    - eto/extensions/eto.ts   (Pi 扩展)"
+	@echo "    - eto/bootstrap/          (初始化工具)"
+	@echo "    - eto/stitches/           (胶水代码)"
+	@echo "    - run-eto.cmd / .ps1      (启动入口)"
+	@echo ""

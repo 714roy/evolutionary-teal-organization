@@ -1,5 +1,8 @@
 [project]
-name = "eto-stitches"
+name = "eto"
 version = "0.1.0"
-description = "ETO Stitches — 胶水代码层"
+description = "ETO — Evolutionary Teal Organization: Bootstrap + Stitches"
 requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["eto", "eto.*"]

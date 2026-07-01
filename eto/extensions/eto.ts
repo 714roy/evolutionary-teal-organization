@@ -7,7 +7,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { execSync } from "child_process";
 import { join } from "path";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
 // ═══════════════════════════════════════════════════
 //  Agent Profile + Skills + Metrics
@@ -297,10 +297,75 @@ async function execPlan(task: string, route: RouteResult): Promise<string> {
 //  四、Pi 扩展入口
 // ═══════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════
+//  Onboarding — 首次引导状态机
+// ═══════════════════════════════════════════════════
+
+interface OnboardingState {
+  version: number;
+  first_session_at?: string;
+  seen_welcome: boolean;
+  provider_set: boolean;
+  first_task_done: boolean;
+  current_step: number;
+  skipped: boolean;
+}
+
+const ONBOARDING_PATH = join(require("os").homedir(), ".eto", "memory", "onboarding.json");
+
+function loadOnboarding(): OnboardingState {
+  try { if (existsSync(ONBOARDING_PATH)) return JSON.parse(readFileSync(ONBOARDING_PATH, "utf-8")); } catch {}
+  return { version: 1, seen_welcome: false, provider_set: false, first_task_done: false, current_step: 0, skipped: false };
+}
+
+function saveOnboarding(s: OnboardingState): void {
+  const dir = join(require("os").homedir(), ".eto", "memory");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(ONBOARDING_PATH, JSON.stringify(s, null, 2), "utf-8");
+}
+
+function needOnboarding(s: OnboardingState): boolean {
+  return !s.skipped && s.current_step < 4;
+}
+
+function setProviderChoice(choice: number): void {
+  const cfgPath = join(require("os").homedir(), ".pi", "eto-config.json");
+  let config: any = {};
+  try { if (existsSync(cfgPath)) config = JSON.parse(readFileSync(cfgPath, "utf-8")); } catch {}
+  const pm: Record<number, string> = { 1: "deepseek", 2: "ollama", 3: "skip" };
+  config.router = config.router || {};
+  config.router.provider = pm[choice] || "deepseek";
+  const dir = join(require("os").homedir(), ".pi");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(cfgPath, JSON.stringify(config, null, 2), "utf-8");
+}
+
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
+    const onb = loadOnboarding();
+    if (needOnboarding(onb)) {
+      if (onb.current_step === 0) {
+        onb.first_session_at = new Date().toISOString();
+        saveOnboarding(onb);
+        ctx.ui.notify("🦋 ETO 你好！回复「是」开始配置。", "info");
+        ctx.ui.setWidget("eto-route", [
+          "╭── 🦋 ETO 青色组织 ───────────────╮",
+          "│  多 Agent 编排系统就绪。        │",
+          "│  直接描述任务即可开始。         │",
+          "│  试试：「帮我写个 Python 程序」  │",
+          "╰────────────────────────────────────╯"
+        ]);
+      } else if (onb.current_step === 3) {
+        ctx.ui.setWidget("eto-route", [
+          "╭── 🎯 试试第一条任务 ───────────────╮",
+          "│  ETO 已就绪！试试说：             │",
+          "│  「帮我写个 Python 程序」         │",
+          "╰────────────────────────────────────╯"
+        ]);
+      }
+      return;
+    }
     ctx.ui.notify("🦋 /ETO  —  无序 · 三生 · 有机", "info");
-    ctx.ui.notify("架构优于单体 · architecture > agent · Enter /eto", "info");
     ctx.ui.setWidget("eto-route", ["📋 ETO 等待中...", "输入任务开始青色组织工作流"]);
   });
 
@@ -335,6 +400,15 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     const task = event.prompt || "";
     if (!task) return;
+
+    // Onboarding T3-T4: first real task detected
+    const onb = loadOnboarding();
+    if (onb.current_step === 3 && !onb.first_task_done) {
+      onb.first_task_done = true;
+      onb.current_step = 4;
+      saveOnboarding(onb);
+      ctx.ui.notify("Onboarding complete!", "info");
+    }
 
     stitchFailureCount = 0; // 重置熔断器
 

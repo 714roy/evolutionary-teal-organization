@@ -3,23 +3,21 @@
 > 文件接力协议：Claude Code（计划审计）↔ Reasonix（编码实现）
 
 | 会话 | Agent | 状态 | 焦点 | 最后活跃 |
-|:-----|:------|:-----|:-----|:---------|
-| main | Claude Code | ACTIVE | 计划/审计/统合 | 2026-06-26 |
-| coder | Reasonix | PENDING | Phase 2-01: Async Stitcher + Profile | 2026-06-27 |
-| coder | Reasonix | PENDING | Phase 2-02: Decompose + Dispatch | 2026-06-27 |
-| coder | Reasonix | PENDING | Phase 2-03: Synthesis + Guards | 2026-06-27 |
+|:-----|:------|:-------|:-----|:---------|
+| main | Claude Code | ACTIVE | 计划/审计/统合 | 2026-07-02 |
+| coder | Reasonix | CLOSED | Phase 2-01: Async Stitcher + Profile | 2026-06-27 |
+| coder | Reasonix | CLOSED | Phase 2-02: Decompose + Dispatch | 2026-06-27 |
+| coder | Reasonix | CLOSED | Phase 2-03: Synthesis + Guards | 2026-06-27 |
 
 ## 活跃锁
 
 | 路径 | 持有者 | 操作 |
 |:-----|:-------|:-----|
-| `eto/stitches/` | — | — |
-| `eto/extensions/` | — | — |
-| `.pi/extensions/` | — | — |
-| `pi-ai/dist/providers/anthropic.js` | — | ✅ 已释放 |
-| `run-eto.cmd` | Reasonix | 去掉 -p flag 进入 TUI |
-| `Makefile` | Reasonix | run-proxy target |
-| `verify-eto.cmd` | — | ✅ 已释放 |
+| `docs/handoffs/reasonix/plan-fix-profiles-and-local-model.md` | Claude Code | 📝 计划中（未开始编码） |
+| `eto/extensions/eto.ts` | — | ⏳ 待改动 |
+| `eto/stitches/` | — | ⏳ 待新增 seed_* 模块 |
+| `.pi/extensions/` | — | ⏳ 待同步 |
+| `docs/test/eto-empty-states.md` | — | ⏳ 待新建 |
 
 ## 协议
 

@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eto-bootstrap"
+version = "0.1.0"
+description = "ETO Bootstrap Bundle — 新手一键初始化包"
+requires-python = ">=3.9"
+
+[project.scripts]
+eto-bootstrap = "bootstrap:run"
+
+[tool.setuptools.packages.find]
+include = ["bootstrap*"]
