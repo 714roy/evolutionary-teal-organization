@@ -10,7 +10,7 @@ import { join } from "path";
 import { existsSync, readFileSync } from "fs";
 
 // ═══════════════════════════════════════════════════
-//  Agent Profile
+//  Agent Profile + Skills + Metrics
 // ═══════════════════════════════════════════════════
 
 interface AgentProfile {
@@ -54,6 +54,45 @@ function synthesizeSummary(task: string, route: RouteResult, agents: AgentProfil
     `协调员: ${route.coordinator}`,
     `执行 Agent: ${agents.map(a => a.label).join("、")}`,
   ].join("\n");
+}
+
+// ═══════════════════════════════════════════════════
+//  Skill Memory — JSONL 加载
+// ═══════════════════════════════════════════════════
+
+interface SkillEntry {
+  skill_name: string;
+  context: string;
+  reward: number;
+  source: string;
+}
+
+function loadSkills(minReward = 0.3): SkillEntry[] {
+  try {
+    const p = join(require("os").homedir(), ".eto", "memory", "skills.jsonl");
+    if (!existsSync(p)) return [];
+    const text = readFileSync(p, "utf-8");
+    return text.split("\n").filter(Boolean).map(l => JSON.parse(l)).filter((s: SkillEntry) => s.reward >= minReward);
+  } catch { return []; }
+}
+
+function matchSkillsForRoute(gewu: string): SkillEntry[] {
+  const skills = loadSkills();
+  return skills.filter(s => s.context.toLowerCase().includes(gewu)).slice(0, 3);
+}
+
+// ═══════════════════════════════════════════════════
+//  Metrics — 记录路由/Agent 统计
+// ═══════════════════════════════════════════════════
+
+function writeMetric(route: string, agent: string, success: boolean, steps = 0, duration = 0): void {
+  try {
+    const p = join(require("os").homedir(), ".eto", "memory", "metrics.jsonl");
+    const dir = join(require("os").homedir(), ".eto", "memory");
+    if (!existsSync(dir)) { (require("fs") as typeof import("fs")).mkdirSync(dir, { recursive: true }); }
+    const entry = JSON.stringify({ route, agent, success, steps, duration, timestamp: new Date().toISOString() }) + "\n";
+    (require("fs") as typeof import("fs")).appendFileSync(p, entry, "utf-8");
+  } catch {}
 }
 
 function decomposePrompt(agents: AgentProfile[]): string {
@@ -127,7 +166,7 @@ gewu + ROUTE rules:
 Task: ${task}`,
         options: { temperature: 0, num_predict: 256 },
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(2000),
     });
     const raw: string = ((await resp.json()) as any).response?.trim() || "";
     const parsed = parseRouteJSON(raw);
@@ -278,6 +317,21 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("metrics", {
+    description: "显示 ETO 运行统计",
+    handler: async (_args, ctx) => {
+      try {
+        const { execSync } = require("child_process");
+        const out = execSync(`python3 "${join(__dirname, "..", "..", "eto", "stitches", "metrics.py")}"`, {
+          input: JSON.stringify({ fn: "summary", args: [] }), encoding: "utf-8", timeout: 5000
+        });
+        ctx.ui.notify(`📊 ETO Metrics:\n${out.trim()}`, "info");
+      } catch {
+        ctx.ui.notify("📊 Metrics 不可用（需运行至少一个任务）", "info");
+      }
+    },
+  });
+
   pi.on("before_agent_start", async (event, ctx) => {
     const task = event.prompt || "";
     if (!task) return;
@@ -309,6 +363,12 @@ export default function (pi: ExtensionAPI) {
       const agentNames = agents.map(a => a.name).join(", ");
       ctx.ui.notify(`👥 Agent: ${agentNames}`, "info");
 
+      // Skill Memory: 匹配经验技能
+      const matchedSkills = matchSkillsForRoute(route.gewu);
+      for (const sk of matchedSkills) {
+        ctx.ui.notify(`📚 经验: ${sk.skill_name} (${(sk.reward * 100).toFixed(0)}%)`, "info");
+      }
+
       const plan = await execPlan(task, route);
       const consensusMatch = plan.match(/共识: (.+?)(?:\n|$)/);
       const stepMatch = plan.match(/共 (\d+) 步/);
@@ -321,9 +381,16 @@ export default function (pi: ExtensionAPI) {
       routeLines.push("");
       routeLines.push(decomposePrompt(agents));
 
+      // 注入匹配的 skill 经验
+      for (const sk of matchedSkills) {
+        routeLines.push(`[Skill] ${sk.skill_name}: ${sk.context.slice(0, 100)}`);
+      }
+
       widgetLines.push(`👥 ${agentNames}`);
       widgetLines.push(`📝 ${stepMatch?.[1] || "?"}步 | 共识: ${consensusMatch?.[1] || "通过"}`);
       ctx.ui.setWidget("eto-route", widgetLines);
+
+      writeMetric(route.route, agentNames, true, parseInt(stepMatch?.[1] || "0"));
       return { systemPrompt: routeLines.join("\n") + "\n\n" + (event.systemPrompt || "") };
     }
 

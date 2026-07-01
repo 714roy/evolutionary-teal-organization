@@ -1,5 +1,6 @@
 """ETO Stitch: VotingAI 共识投票层（Step 4 - 真实 peer 评分）"""
-import json, sys, urllib.request, urllib.error
+import io, json, sys, urllib.request, urllib.error
+sys.stdout.reconfigure(encoding="utf-8")
 
 OLLAMA_URL = "http://localhost:11434"
 MODEL = "qwen2.5-coder:7b"

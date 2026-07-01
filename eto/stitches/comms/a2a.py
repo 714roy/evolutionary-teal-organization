@@ -1,5 +1,6 @@
 """ETO Stitch: 多步任务执行层（Step 3 - 真实 LLM 执行 + 上下文传递）"""
-import json, sys, urllib.request, urllib.error, time
+import io, json, sys, urllib.request, urllib.error, time
+sys.stdout.reconfigure(encoding="utf-8")
 
 OLLAMA_URL = "http://localhost:11434"
 MODEL = "qwen2.5-coder:7b"

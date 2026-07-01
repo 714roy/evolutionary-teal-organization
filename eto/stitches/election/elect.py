@@ -1,5 +1,6 @@
 """ETO Stitch: 协调员选举（按分数排序选最高分）"""
-import json, sys
+import io, json, sys
+sys.stdout.reconfigure(encoding="utf-8")
 
 
 def elect(candidates: list) -> dict:
