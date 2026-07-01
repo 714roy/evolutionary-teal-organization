@@ -13,7 +13,6 @@ import pytest
 # Import modules under test (relative to bootstrap root)
 from bootstrap.seed_profiles import init as seed_profiles_init
 from bootstrap.seed_sample_skills import SEED as SKILLS_SEED
-from bootstrap.seed_sample_tasks import SEED as TASKS_SEED
 from bootstrap.config_template import make_config
 
 
@@ -72,20 +71,6 @@ class TestSeedSkills:
         for s in SKILLS_SEED:
             assert s["reward"] >= 0
 
-
-# ── seed_sample_tasks tests ────────────────────────────────────────
-
-class TestSeedTasks:
-    def test_seed_count(self):
-        assert len(TASKS_SEED) == 2
-
-    def test_is_seed_flagged(self):
-        for t in TASKS_SEED:
-            assert t["is_seed"] is True
-
-    def test_required_fields_present(self):
-        for t in TASKS_SEED:
-            assert all(k in t for k in ("task", "result", "route", "agent", "is_seed"))
 
 
 # ── config_template tests ─────────────────────────────────────────

@@ -35,12 +35,7 @@ def run(force: bool = False) -> dict:
     r = _seed_skills(force=force)
     steps.append(r)
 
-    # 3. seed sample tasks
-    from .seed_sample_tasks import init as _seed_tasks
-    r = _seed_tasks(force=force)
-    steps.append(r)
-
-    # 4. generate eto-config.json if missing or forced
+    # 3. generate eto-config.json if missing or forced
     if force or not ETO_CONFIG_PATH.exists():
         from .config_template import make_config
         provider = "deepseek" if os.environ.get("DEEPSEEK_API_KEY") else "ollama"
