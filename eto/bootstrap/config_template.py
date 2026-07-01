@@ -1,7 +1,7 @@
 """ETO Config 模板"""
 import json
 
-def make_config(default_provider: str) -> str:
+def make_config(provider: str) -> str:
     return json.dumps({
         "router": {
             "provider": default_provider,

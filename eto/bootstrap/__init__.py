@@ -24,11 +24,11 @@ def run(force=False):
     config_path = HOME / ".pi" / "eto-config.json"
     if force or not config_path.exists():
         from eto.bootstrap.config_template import make_config
-        provider = "deepseek" if os.environ.get("DEEPSEEK_API_KEY") else "ollama"
-        config_path.write_text(make_config(provider), "utf-8")
-        steps.append({"step": "config", "status": "created", "provider": provider})
+        config_path.write_text(make_config("ollama"), "utf-8")
+        steps.append({"step": "config", "status": "created", "provider": "ollama (default)"})
     else:
         steps.append({"step": "config", "status": "skipped"})
+    # 注意: provider 在首次启动时由 onboarding 引导配置，bootstrap 只设默认值
 
     return {"status": "bootstrap_complete", "steps": steps}
 
