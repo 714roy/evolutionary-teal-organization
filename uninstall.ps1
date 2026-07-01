@@ -43,6 +43,14 @@ if (Test-Path $target) {
 }
 Write-Host "  Done" -ForegroundColor Green
 
+# Remove eto wrapper from npm global
+$npmDir = Join-Path $env:APPDATA "npm"
+foreach ($f in @("eto.ps1", "eto.cmd")) {
+    $p = Join-Path $npmDir $f
+    if (Test-Path $p) { Remove-Item $p -Force; Write-Host "  Removed npm\$f" -ForegroundColor Gray }
+}
+Write-Host "  Done" -ForegroundColor Green
+
 Write-Host ""
 Write-Host "  Uninstall complete." -ForegroundColor Green
-Write-Host "  Note: Pi CLI was not removed. Run: npm uninstall -g @earendil-works/pi-coding-agent" -ForegroundColor Gray
+Write-Host "  Pi CLI was not removed. Run: npm uninstall -g @earendil-works/pi-coding-agent" -ForegroundColor Gray
