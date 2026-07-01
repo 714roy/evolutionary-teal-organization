@@ -5,7 +5,9 @@
 | 会话 | Agent | 状态 | 焦点 | 最后活跃 |
 |:-----|:------|:-----|:-----|:---------|
 | main | Claude Code | ACTIVE | 计划/审计/统合 | 2026-06-26 |
-| coder | Reasonix | PENDING | P0-3 扩展自动注册 + 清理 | 2026-06-26 |
+| coder | Reasonix | PENDING | Phase 2-01: Async Stitcher + Profile | 2026-06-27 |
+| coder | Reasonix | PENDING | Phase 2-02: Decompose + Dispatch | 2026-06-27 |
+| coder | Reasonix | PENDING | Phase 2-03: Synthesis + Guards | 2026-06-27 |
 
 ## 活跃锁
 

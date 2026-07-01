@@ -25,5 +25,8 @@
     "@earendil-works/pi-coding-agent": "^0.80.2",
     "@sinclair/typebox": "^0.34.49",
     "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "dependency-cruiser": "^18.0.0"
   }
 }

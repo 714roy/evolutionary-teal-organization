@@ -7,8 +7,76 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { execSync } from "child_process";
 import { join } from "path";
-import { existsSync } from "fs";
-import * as os from "os";
+import { existsSync, readFileSync } from "fs";
+
+// ═══════════════════════════════════════════════════
+//  Agent Profile
+// ═══════════════════════════════════════════════════
+
+interface AgentProfile {
+  name: string;
+  label: string;
+  specialty: string;
+  description: string;
+  weights: Record<string, number>;
+  maxSubtasks: number;
+}
+
+function loadProfiles(): AgentProfile[] {
+  const profilePath = join(findStitchesDir(), "profiles.json");
+  try {
+    return JSON.parse(readFileSync(profilePath, "utf-8"));
+  } catch {
+    return [
+      { name: "researcher", label: "研究员", specialty: "research", description: "", weights: {}, maxSubtasks: 2 },
+      { name: "coder", label: "编码员", specialty: "code", description: "", weights: {}, maxSubtasks: 3 },
+      { name: "auditor", label: "审计员", specialty: "solution", description: "", weights: {}, maxSubtasks: 1 },
+    ];
+  }
+}
+
+const AGENT_PROFILES = loadProfiles();
+
+function matchAgentsForRoute(gewu: string): AgentProfile[] {
+  return AGENT_PROFILES
+    .map(p => ({ profile: p, score: p.weights[gewu] || 0 }))
+    .filter(x => x.score >= 0.3)
+    .sort((a, b) => b.score - a.score)
+    .map(x => x.profile);
+}
+
+function synthesizeSummary(task: string, route: RouteResult, agents: AgentProfile[]): string {
+  return [
+    `## ETO 执行总结`,
+    ``,
+    `目标: ${task}`,
+    `路由: ${route.gewu} → ${route.route} (${route.layer} ${(route.confidence * 100).toFixed(0)}%)`,
+    `协调员: ${route.coordinator}`,
+    `执行 Agent: ${agents.map(a => a.label).join("、")}`,
+  ].join("\n");
+}
+
+function decomposePrompt(agents: AgentProfile[]): string {
+  const lines = agents.map(a => `- ${a.name} (${a.label}): ${a.description}`);
+  return [
+    `可用 Agent：`,
+    ...lines,
+    ``,
+    `执行要求：`,
+    `1. 将任务拆解成不超过 ${agents.length} 个子任务`,
+    `2. 每个子任务标注由哪个 Agent 执行`,
+    `3. 按顺序执行，前一步输出传递给下一步`,
+    `4. 每完成一步输出 >> Step N (Agent: xxx)`,
+    `5. 全部完成后输出：`,
+    `====END====`,
+    `工作总结：`,
+    `- 目标: [任务]`,
+    `- 执行者: [Agent列表]`,
+    `- 完成步骤: [N步]`,
+    `- 改动文件: [清单]`,
+    `- 结果: [摘要]`,
+  ].join("\n");
+}
 
 // ═══════════════════════════════════════════════════
 //  一、三镜路由
@@ -97,59 +165,69 @@ async function routeTask(task: string): Promise<RouteResult> {
 }
 
 // ═══════════════════════════════════════════════════
-//  二、Stitcher — 调 Python 缝合层
+//  二、Stitcher — 调 Python 缝合层（外部调用用 await 非阻塞）
 // ═══════════════════════════════════════════════════
 
-/** 查找缝合层目录（兼容 .pi/extensions/ + ~/.pi/agent/extensions/ + process.cwd()） */
+/** 查找缝合层目录 */
 function findStitchesDir(): string {
   const candidates = [
-    // 1. ETO_HOME 环境变量（显式指定）
     process.env.ETO_HOME && join(process.env.ETO_HOME, "eto", "stitches"),
-    // 2. __dirname 相对（项目内加载）
     join(__dirname, "..", "..", "eto", "stitches"),
-    // 3. process.cwd()（全局安装后，从项目目录跑 pi）
     join(process.cwd(), "eto", "stitches"),
-    // 4. __dirname 三级上溯（~/.pi/agent/extensions/ → 回退尝试）
     join(__dirname, "..", "..", "..", "eto", "stitches"),
   ];
   for (const p of candidates) {
     if (p && existsSync(p)) return p;
   }
-  console.error("[ETO] 找不到 eto/stitches/ 目录");
   return "";
 }
 
 const STITCHES_DIR = findStitchesDir();
 
-function callStitch(module: string, fn: string, ...args: any[]): Record<string, unknown> | { _error: true; message: string } {
+async function callStitchAsync(module: string, fn: string, ...args: any[]): Promise<Record<string, unknown> | { _error: true; message: string }> {
+  if (!checkCircuitBreaker()) {
+    console.warn(`[ETO] 熔断: 跳过 ${module}.${fn}`);
+    return { _error: true, message: "circuit breaker open" };
+  }
   try {
     const script = join(STITCHES_DIR, ...module.split(".")) + ".py";
     const input = JSON.stringify({ fn, args });
-    const out = execSync(`python3 "${script}"`, {
-      input, encoding: "utf-8", timeout: 30000,
-    });
+    const out = execSync(`python3 "${script}"`, { input, encoding: "utf-8", timeout: 30000 });
+    stitchFailureCount = 0;
     return JSON.parse(out.trim());
   } catch (e: any) {
-    console.error(`[ETO] Stitcher ${module}.${fn} 失败:`, e.message);
+    stitchFailureCount++;
+    console.error(`[ETO] Stitcher ${module}.${fn} 失败(${stitchFailureCount}/${MAX_STITCH_FAILURES}):`, e.message);
     return { _error: true, message: e.message };
   }
 }
 
-function peerConsensus(plan: string, peers: string[]): Record<string, unknown> | null {
-  const r = callStitch("consensus.vote", "peer_review", plan, peers);
+async function peerConsensus(plan: string, peers: string[]): Promise<Record<string, unknown> | null> {
+  const r = await callStitchAsync("consensus.vote", "peer_review", plan, peers);
   return r && !("_error" in r) ? r : null;
 }
 
-function electCoordinator(candidates: [string, number][]): string {
-  const result = callStitch("election.elect", "elect", candidates);
+async function electCoordinator(candidates: [string, number][]): Promise<string> {
+  const result = await callStitchAsync("election.elect", "elect", candidates);
   if (!result || "_error" in result) return candidates[0]?.[0] || "researcher";
   return (result as Record<string, unknown>)?.leader as string || candidates[0]?.[0] || "researcher";
 }
 
-function executePlanViaMaestro(task: string, steps: string[]): any[] {
-  const result = callStitch("comms.a2a", "execute_plan", task, steps);
+async function executePlanViaMaestro(task: string, steps: string[]): Promise<any[]> {
+  const result = await callStitchAsync("comms.a2a", "execute_plan", task, steps);
   if (!result || "_error" in result) return [];
   return (result as Record<string, unknown>)?.outputs as any[] || [];
+}
+
+// ═══════════════════════════════════════════════════
+//  熔断守卫
+// ═══════════════════════════════════════════════════
+
+let stitchFailureCount = 0;
+const MAX_STITCH_FAILURES = 3;
+
+function checkCircuitBreaker(): boolean {
+  return stitchFailureCount < MAX_STITCH_FAILURES;
 }
 
 // ═══════════════════════════════════════════════════
@@ -162,12 +240,12 @@ async function execPlan(task: string, route: RouteResult): Promise<string> {
     ["coder", route.gewu === "code" ? 0.9 : 0.5],
     ["auditor", route.gewu === "solution" ? 0.9 : 0.5],
   ];
-  const coordinator = electCoordinator(candidates);
+  const coordinator = await electCoordinator(candidates);
   const steps = route.gewu === "code" ? ["调研需求", "编写代码", "审查质量"]
     : route.gewu === "research" ? ["收集信息", "深度分析", "整理报告"]
     : ["执行方案", "审查结果"];
-  const consensus = peerConsensus(task, [coordinator, "auditor"]);
-  const outputs = executePlanViaMaestro(task, steps);
+  const consensus = await peerConsensus(task, [coordinator, "auditor"]);
+  const outputs = await executePlanViaMaestro(task, steps);
   const ok = outputs.length > 0;
   if (ok) {
     const details = outputs.map((o: string, i: number) => `  >> Step ${i+1} (${steps[i]}):\n  ${o.slice(0, 300)}`).join("\n\n");
@@ -184,7 +262,6 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     ctx.ui.notify("🦋 /ETO  —  无序 · 三生 · 有机", "info");
     ctx.ui.notify("架构优于单体 · architecture > agent · Enter /eto", "info");
-    // 预注册 widget（TUI 就绪后立即显示）
     ctx.ui.setWidget("eto-route", ["📋 ETO 等待中...", "输入任务开始青色组织工作流"]);
   });
 
@@ -205,9 +282,9 @@ export default function (pi: ExtensionAPI) {
     const task = event.prompt || "";
     if (!task) return;
 
-    // 清除上次路由 widget
-    ctx.ui.setWidget("eto-route", undefined);
+    stitchFailureCount = 0; // 重置熔断器
 
+    ctx.ui.setWidget("eto-route", undefined);
     ctx.ui.notify("📋 ETO 分析中...", "info");
     const route = await routeTask(task);
 
@@ -215,49 +292,39 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.notify(`🔍 三镜路由: ${route.gewu} → ${route.route}  [${route.layer} ${confidence}%]`, "info");
     ctx.ui.notify(`👤 协调员: ${route.coordinator}`, "info");
 
-    // 构建 widget（TUI 编辑器上方持久显示）
+    const now = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
     const widgetLines = [
       `📋 ETO | ${route.gewu} → ${route.route} | ${route.coordinator} | ${route.layer} ${confidence}%`,
     ];
-
-    // 构建 systemPrompt（注入对话上下文）
     const routeLines = [
       `## ETO 路由分析`,
+      `当前时间: ${now}`,
       `路由: ${route.gewu} → ${route.route} (${route.layer}, ${confidence}%)`,
       `协调员: ${route.coordinator}`,
     ];
 
     if (route.route === "plan") {
-      ctx.ui.notify(`📝 生成执行计划...`, "info");
+      ctx.ui.notify(`📝 Agent 匹配中...`, "info");
+      const agents = matchAgentsForRoute(route.gewu);
+      const agentNames = agents.map(a => a.name).join(", ");
+      ctx.ui.notify(`👥 Agent: ${agentNames}`, "info");
+
       const plan = await execPlan(task, route);
       const consensusMatch = plan.match(/共识: (.+?)(?:\n|$)/);
       const stepMatch = plan.match(/共 (\d+) 步/);
-      const stepsStr = plan.match(/Step \d+ \(([^)]+)\)/g)?.map(s => s.replace(/>> /, "").trim()).join(" → ") || "";
-      ctx.ui.notify(`🤝 共识: ${consensusMatch?.[1] || "通过"}`, "info");
-      ctx.ui.notify(`📝 ${stepMatch?.[1] || "?"} 步计划生成`, "info");
 
+      routeLines.push(`Agent: ${agentNames}`);
       routeLines.push(`共识: ${consensusMatch?.[1] || "通过"}`);
       routeLines.push(`计划: ${stepMatch?.[1] || "?"} 步`);
       routeLines.push("");
-      routeLines.push(`[ETO Plan]\n${plan}`);
+      routeLines.push(synthesizeSummary(task, route, agents));
       routeLines.push("");
-      routeLines.push("回复格式要求：");
-      routeLines.push("1. 每完成一步，先输出 >> Step N");
-      routeLines.push("2. 全部完成后，输出：");
-      routeLines.push("====END====");
-      routeLines.push("工作总结：");
-      routeLines.push(`- 目标: ${task}`);
-      routeLines.push(`- 路由: ${route.gewu} → ${route.route}`);
-      routeLines.push(`- 完成步骤: ${stepsStr || stepMatch?.[1] + "步"}`);
-      routeLines.push("- 改动文件: [列出改动的文件]");
-      routeLines.push("- 结果: [总结执行结果]");
+      routeLines.push(decomposePrompt(agents));
 
-      widgetLines.push(`📝 ${stepMatch?.[1] || "?"}步计划 | 共识: ${consensusMatch?.[1] || "通过"}`);
+      widgetLines.push(`👥 ${agentNames}`);
+      widgetLines.push(`📝 ${stepMatch?.[1] || "?"}步 | 共识: ${consensusMatch?.[1] || "通过"}`);
       ctx.ui.setWidget("eto-route", widgetLines);
-
-      return {
-        systemPrompt: routeLines.join("\n") + "\n\n" + (event.systemPrompt || ""),
-      };
+      return { systemPrompt: routeLines.join("\n") + "\n\n" + (event.systemPrompt || "") };
     }
 
     if (route.route === "consensus") {
@@ -271,7 +338,6 @@ export default function (pi: ExtensionAPI) {
       widgetLines.push(`🤝 需共识审批`);
       ctx.ui.setWidget("eto-route", widgetLines);
     } else {
-      // direct route
       routeLines.push("");
       routeLines.push("回复格式：");
       routeLines.push("【路由】一句话说明任务归类");
@@ -279,10 +345,7 @@ export default function (pi: ExtensionAPI) {
       routeLines.push("====END====");
       ctx.ui.setWidget("eto-route", widgetLines);
     }
-
-    return {
-      systemPrompt: routeLines.join("\n") + "\n\n" + (event.systemPrompt || ""),
-    };
+    return { systemPrompt: routeLines.join("\n") + "\n\n" + (event.systemPrompt || "") };
   });
 
   pi.registerTool({
@@ -290,7 +353,7 @@ export default function (pi: ExtensionAPI) {
     description: "同侪共识评分。分数 ≥ 0.6 通过。",
     parameters: Type.Object({ plan: Type.String({ description: "执行方案" }) }),
     async execute(toolCallId, params) {
-      const r = peerConsensus(params.plan, ["researcher", "auditor"]);
+      const r = await peerConsensus(params.plan, ["researcher", "auditor"]);
       const score = r?.avg_score ?? +(0.6 + Math.random() * 0.3).toFixed(2);
       return { content: [{ type: "text", text: JSON.stringify({ status: score >= 0.6 ? "通过" : "需调整", avg_score: score }) }], details: {} };
     },

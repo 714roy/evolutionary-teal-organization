@@ -4,11 +4,14 @@
 
 > 2026-06-25 复盘教训：ETO 写了 3156 行代码，但 Pi CLI 已有 TUI/Agent 引擎/工具系统/会话管理。正确的架构是 ETO 做薄编排层跑在 Pi CLI 之上，而不是重写整个栈。
 
-**做之前先问：Pi CLI 有没有？**
-- TUI → Pi CLI 自带 `pi-tui`，不要写 tui.py
-- 工具调用 → Pi CLI 的 `--tools`，不要封装 executor.py
-- 会话管理 → Pi CLI 的 JSONL 会话树，不要写 context.py
-- Agent 运行时 → `pi` 命令，不要封装 call_pi
+**做之前先问三遍，优先级递减：**
+0. **pip/npm 有没有？** — 包管理器有的绝不自写，一行都不要
+1. **GitHub 有没有成熟方案？** — 按 stars 排序搜关键字，有就不自写
+2. **Pi CLI 有没有？** — 以下映射表
+   - TUI → Pi CLI 自带 `pi-tui`，不要写 tui.py
+   - 工具调用 → Pi CLI 的 `--tools`，不要封装 executor.py
+   - 会话管理 → Pi CLI 的 JSONL 会话树，不要写 context.py
+   - Agent 运行时 → `pi` 命令，不要封装 call_pi
 
 **ETO 只写（编排层，总量 < 1000 行）：**
 1. ✅ 三镜路由（analyze / router）
