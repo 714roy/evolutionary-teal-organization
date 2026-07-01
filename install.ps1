@@ -1,21 +1,19 @@
 #!/usr/bin/env pwsh
-# ETO Installer — iex 兼容版
+# ETO Installer — 仅安装 ETO 插件，不碰系统配置
 $ErrorActionPreference = "Stop"
 $GH_REPO = "https://github.com/reoroy/evolutionary-teal-organization"
 
-Write-Host "`n=== ETO Installer ===`n" -ForegroundColor Cyan
+Write-Host "`n=== ETO Plugin Installer ===`n" -ForegroundColor Cyan
 
-# 1. Check environment
-Write-Host "[1/4] Checking environment..." -ForegroundColor Cyan
-$ok = $true
-try { Get-Command node -ErrorAction Stop | Out-Null } catch { Write-Host "  FAIL: Node.js required" -ForegroundColor Red; $ok = $false }
-try { Get-Command python3 -ErrorAction Stop | Out-Null } catch { Write-Host "  FAIL: Python 3.10+ required" -ForegroundColor Red; $ok = $false }
-if (-not $env:DEEPSEEK_API_KEY) { Write-Host "  WARN: DEEPSEEK_API_KEY not set" -ForegroundColor Yellow }
-if (-not $ok) { exit 1 }
+Write-Host "[1/3] Checking Pi CLI..." -ForegroundColor Cyan
+try { Get-Command pi -ErrorAction Stop | Out-Null } catch {
+    Write-Host "  FAIL: Pi CLI not found." -ForegroundColor Red
+    Write-Host "  Install Pi first: npm install -g @earendil-works/pi-coding-agent" -ForegroundColor Yellow
+    exit 1
+}
 Write-Host "  OK" -ForegroundColor Green
 
-# 2. Clone
-Write-Host "[2/4] Cloning ETO..." -ForegroundColor Cyan
+Write-Host "[2/3] Cloning ETO..." -ForegroundColor Cyan
 $target = Join-Path $env:USERPROFILE "eto"
 if (Test-Path "$target\.git") {
     Write-Host "  Already cloned at $target" -ForegroundColor Gray
@@ -24,30 +22,11 @@ if (Test-Path "$target\.git") {
     if ($LASTEXITCODE -ne 0) { Write-Host "  FAIL: git clone failed" -ForegroundColor Red; exit 1 }
     Write-Host "  OK" -ForegroundColor Green
 }
-Set-Location $target
 
-# 3. Pi CLI + extension + eto wrapper
-Write-Host "[3/4] Installing Pi CLI and extension..." -ForegroundColor Cyan
-try { Get-Command pi -ErrorAction Stop | Out-Null } catch { npm install -g @earendil-works/pi-coding-agent 2>&1 | Out-Null }
+Write-Host "[3/3] Registering ETO extension..." -ForegroundColor Cyan
 pi install "$target\eto\extensions\eto.ts" 2>&1 | Out-Null
-$npmDir = Join-Path $env:APPDATA "npm"
-$piCli = "$npmDir\node_modules\@earendil-works\pi-coding-agent\dist\cli.js"
-@"
-#!/usr/bin/env pwsh
-`$piCli = "$npmDir\node_modules\@earendil-works\pi-coding-agent\dist\cli.js"
-if (`$args.Count -eq 0) { & node `$piCli --provider deepseek } else { & node `$piCli --provider deepseek @args }
-"@ | Out-File (Join-Path $npmDir "eto.ps1") -Encoding utf8
-@"
-@echo off
-node "%APPDATA%\npm\node_modules\@earendil-works\pi-coding-agent\dist\cli.js" --provider deepseek %*
-"@ | Out-File (Join-Path $npmDir "eto.cmd") -Encoding utf8
-Write-Host "  OK" -ForegroundColor Green
-
-# 4. Bootstrap
-Write-Host "[4/4] Bootstrap..." -ForegroundColor Cyan
-pip install -e "$target\eto" 2>&1 | Out-Null
-python3 -c "import sys; sys.path.insert(0,'$target'); from eto.bootstrap import run; run()" 2>&1 | Out-Null
 Write-Host "  OK" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "  Done! Run: eto" -ForegroundColor Green
+Write-Host "  Done! Run: pi" -ForegroundColor Green
+Write-Host "  (ETO extension auto-loads. Configure provider via pi login or --provider)" -ForegroundColor Gray
