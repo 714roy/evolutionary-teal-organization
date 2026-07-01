@@ -259,11 +259,76 @@ async function executePlanViaMaestro(task: string, steps: string[]): Promise<any
 }
 
 // ═══════════════════════════════════════════════════
-//  熔断守卫
-// ═══════════════════════════════════════════════════
+  //  智子安检 — 可配置规则引擎
+  // ═══════════════════════════════════════════════════
 
-let stitchFailureCount = 0;
-const MAX_STITCH_FAILURES = 3;
+  interface SentinelRule {
+    name: string;
+    trigger: "bash" | "write_file";
+    pattern: string;
+    action: "confirm" | "block" | "log";
+    message?: string;
+  }
+
+  function loadSentinelConfig(): { enabled: boolean; rules: SentinelRule[]; logFile: string } {
+    const defaultResult = { enabled: true, rules: [{ name: "default-rm", trigger: "bash", pattern: "rm\\s+-rf|dd\\s+if=|mkfs", action: "confirm" }] as SentinelRule[], logFile: "" };
+    const configPath = join(require("os").homedir(), ".pi", "eto-sentinel.json");
+    try {
+      if (!existsSync(configPath)) return defaultResult;
+      const raw = JSON.parse(readFileSync(configPath, "utf-8"));
+      return { enabled: raw.enabled !== false, rules: raw.rules || [], logFile: (raw.logFile || "~/.eto").replace("~", require("os").homedir()) };
+    } catch { return defaultResult; }
+  }
+
+  let SENTINEL = loadSentinelConfig();
+
+  async function checkSentinel(event: any, ctx: any): Promise<{ block: true; reason: string } | null> {
+    if (!SENTINEL.enabled) return null;
+
+    // Bash trigger
+    if (event.toolName === "bash" && typeof event.input?.command === "string") {
+      const cmd = event.input.command;
+      for (const rule of SENTINEL.rules) {
+        if (rule.trigger !== "bash") continue;
+        const re = new RegExp(rule.pattern, "i");
+        if (!re.test(cmd)) continue;
+
+        if (rule.action === "block") { logSentinel(rule.name, cmd); return { block: true, reason: rule.message || rule.name }; }
+        if (rule.action === "log")   { logSentinel(rule.name, cmd); return null; }
+        // confirm
+        const ok = await ctx.ui.confirm("⛔ 智子安检", `[${rule.name}] ${rule.message || rule.name}\n操作：${cmd.slice(0, 80)}\n放行？`);
+        logSentinel(rule.name, cmd);
+        return ok ? null : { block: true, reason: rule.message || rule.name };
+      }
+    }
+
+    // write_file trigger
+    if (event.toolName === "write" && typeof event.input?.filepath === "string") {
+      for (const rule of SENTINEL.rules) {
+        if (rule.trigger !== "write_file") continue;
+        if (!new RegExp(rule.pattern, "i").test(event.input.filepath)) continue;
+        logSentinel(rule.name, event.input.filepath);
+        return { block: true, reason: rule.message || rule.name };
+      }
+    }
+
+    return null;
+  }
+
+  function logSentinel(ruleName: string, target: string): void {
+    if (!SENTINEL.logFile) return;
+    try {
+      const logPath = SENTINEL.logFile.endsWith(".jsonl") ? SENTINEL.logFile : SENTINEL.logFile + "/sentinel-log.jsonl";
+      require("fs").appendFileSync(logPath, JSON.stringify({ event: "blocked", rule: ruleName, target: target.slice(0, 200), ts: new Date().toISOString() }) + "\n", "utf-8");
+    } catch {}
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  熔断守卫
+  // ═══════════════════════════════════════════════════
+
+  let stitchFailureCount = 0;
+  const MAX_STITCH_FAILURES = 3;
 
 function checkCircuitBreaker(): boolean {
   return stitchFailureCount < MAX_STITCH_FAILURES;
@@ -501,11 +566,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName === "bash" && typeof event.input?.command === "string") {
-      if (["rm -rf", "dd if=", "format ", "mkfs"].some((d) => event.input!.command!.includes(d))) {
-        const ok = await ctx.ui.confirm("⛔ 智子安检", `危险操作：${event.input.command.slice(0, 80)}\n放行？`);
-        if (!ok) return { block: true, reason: "智子否决" };
-      }
-    }
+    const result = await checkSentinel(event, ctx);
+    if (result) return result;
   });
 }
