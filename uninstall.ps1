@@ -2,9 +2,12 @@
 # ETO Uninstaller — 仅移除 ETO 插件
 Write-Host "`n=== ETO Plugin Uninstaller ===`n" -ForegroundColor Cyan
 
-Write-Host "[1/2] Unregistering ETO extension..." -ForegroundColor Cyan
-try { Get-Command pi -ErrorAction Stop | Out-Null } catch { Write-Host "  Pi CLI not found, skipping" -ForegroundColor Gray; exit 0 }
-pi remove eto/extensions/eto.ts 2>&1 | Out-Null
+$target = Join-Path $env:USERPROFILE "eto"
+
+Write-Host "[1/3] Unregistering ETO extension..." -ForegroundColor Cyan
+try { Get-Command pi -ErrorAction Stop | Out-Null } catch { Write-Host "  Pi CLI not found, skipping" -ForegroundColor Gray }
+pi remove "$target\eto\extensions\eto.ts" >$null 2>&1
+if ($LASTEXITCODE -eq 0) { Write-Host "  Removed" -ForegroundColor Green } else { Write-Host "  Not found (already removed?)" -ForegroundColor Yellow }
 Write-Host "  OK" -ForegroundColor Green
 
 Write-Host "[2/2] Removing cloned repo and wrapper..." -ForegroundColor Cyan
