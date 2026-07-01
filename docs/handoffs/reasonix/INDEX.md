@@ -13,11 +13,14 @@
 
 | 路径 | 持有者 | 操作 |
 |:-----|:-------|:-----|
-| `docs/handoffs/reasonix/plan-fix-profiles-and-local-model.md` | Claude Code | 📝 计划中（未开始编码） |
-| `eto/extensions/eto.ts` | — | ⏳ 待改动 |
-| `eto/stitches/` | — | ⏳ 待新增 seed_* 模块 |
-| `.pi/extensions/` | — | ⏳ 待同步 |
-| `docs/test/eto-empty-states.md` | — | ⏳ 待新建 |
+| `docs/handoffs/reasonix/plan-eto-phase4.md` | Claude Code | 📝 计划就绪 |
+| `eto/extensions/eto.ts` | — | ⏳ Phase 4-A: Onboarding grilling rewrite |
+| `eto/extensions/eto.ts` | — | ⏳ Phase 4-C: 智子扩展（rateLimit + scan + reload） |
+| `bootstrap/seed_sample_skills.py` | — | ⏳ 清空种子数据（不写假 skill） |
+| `bootstrap/__init__.py` | — | ⏳ 同步删除 seed_tasks 引用 |
+| `docs/test/eto-empty-states.md` | — | ⏳ Phase 4-B: 空状态测试文档 |
+| `docs/test/test_empty_states.py` | — | ⏳ Phase 4-B: 测试脚本 |
+| `.pi/eto-sentinel.json` | — | ⏳ Phase 4-C: 加 rateLimit 字段 |
 
 ## 协议
 
