@@ -26,10 +26,21 @@ if (Test-Path "$target\.git") {
 }
 Set-Location $target
 
-# 3. Pi CLI + extension
+# 3. Pi CLI + extension + eto wrapper
 Write-Host "[3/4] Installing Pi CLI and extension..." -ForegroundColor Cyan
 try { Get-Command pi -ErrorAction Stop | Out-Null } catch { npm install -g @earendil-works/pi-coding-agent 2>&1 | Out-Null }
 pi install "$target\eto\extensions\eto.ts" 2>&1 | Out-Null
+$npmDir = Join-Path $env:APPDATA "npm"
+$piCli = "$npmDir\node_modules\@earendil-works\pi-coding-agent\dist\cli.js"
+@"
+#!/usr/bin/env pwsh
+`$piCli = "$npmDir\node_modules\@earendil-works\pi-coding-agent\dist\cli.js"
+if (`$args.Count -eq 0) { & node `$piCli --provider deepseek } else { & node `$piCli --provider deepseek @args }
+"@ | Out-File (Join-Path $npmDir "eto.ps1") -Encoding utf8
+@"
+@echo off
+node "%APPDATA%\npm\node_modules\@earendil-works\pi-coding-agent\dist\cli.js" --provider deepseek %*
+"@ | Out-File (Join-Path $npmDir "eto.cmd") -Encoding utf8
 Write-Host "  OK" -ForegroundColor Green
 
 # 4. Bootstrap
