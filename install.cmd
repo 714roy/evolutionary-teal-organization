@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul
+
 echo === ETO Plugin Installer ===
 echo.
 
@@ -13,17 +14,19 @@ if errorlevel 1 (
 echo OK
 
 echo [2/3] Cloning ETO...
-if exist "%USERPROFILE%\.git" (
-    echo Already cloned
+set "ETO_DIR=%USERPROFILE%\eto"
+if exist "%ETO_DIR%\.git" (
+    echo Already cloned at %ETO_DIR%
 ) else (
-    git clone https://github.com/reoroy/evolutionary-teal-organization "%USERPROFILE%\eto"
+    git clone https://github.com/reoroy/evolutionary-teal-organization "%ETO_DIR%" >nul 2>&1
+    if errorlevel 1 (echo FAIL: git clone failed; pause & exit /b 1)
+    echo OK
 )
-echo OK
 
 echo [3/3] Registering ETO extension...
-pi install "%USERPROFILE%\eto\eto\extensions\eto.ts"
+pi install "%ETO_DIR%\eto\extensions\eto.ts" >nul 2>&1
+if errorlevel 1 (echo FAIL: pi install failed; pause & exit /b 1)
 echo OK
 
 echo.
 echo Done! Run: pi
-pause
